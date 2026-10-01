@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>エキサイティング席替えアプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            /* 白基調の明るいグラデーションに変更 */
+            background: linear-gradient(135deg, #f8fafc, #e0e7ff, #f0fdf4);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            color: #1f2937;
+            overflow: hidden; 
+            touch-action: manipulation; 
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 座席のスタイル（画面いっぱいに広がるように修正） */
+        .seat {
+            width: 100%;
+            height: 100%;
+            min-height: 40px; /* 最小高さを設定 */
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            position: relative;
+            transform-style: preserve-3d;
+            perspective: 1000px;
+            cursor: default;
+        }
+
+        .seat-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+            transform-style: preserve-3d;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 12px;
+        }
+
+        .seat.revealed .seat-inner {
+            transform: rotateY(180deg);
+        }
+
+        /* 座席の表裏（黒いチラつきを修正） */
+        .seat-front, .seat-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            /* 3D反転時のチラつき防止の魔法のコード */
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            -webkit-transform: translateZ(1px); /* iOS対策 */
+            transform: translateZ(1px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        /* 白基調に合わせた表面 */
+        .seat-front {
+            background: linear-gradient(145deg, #e2e8f0, #cbd5e1);
+            color: #64748b;
+            font-size: 1.5rem;
+            border: 2px solid #cbd5e1;
+        }
+
+        /* 白基調に合わせた裏面（名前表示） */
+        .seat-back {
+            background: linear-gradient(145deg, #ffffff, #f8fafc);
+            color: #1e293b;
+            transform: rotateY(180deg);
+            border: 3px solid #3b82f6; /* 青い枠で目立たせる */
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+        }
+
+        /* 特別な演出用のスタイル */
+        .seat.highlight .seat-inner {
+            box-shadow: 0 0 25px #fbbf24;
+            transform: scale(1.15);
+            z-index: 10;
+        }
+
+        /* ドキドキ感を高める鼓動アニメーション */
+        .seat.highlight-pulse .seat-inner {
+            box-shadow: 0 0 30px #fbbf24;
+            transform: scale(1.15);
+            animation: heartbeat 0.6s infinite alternate;
+            z-index: 10;
+        }
+
+        @keyframes heartbeat {
+            0% { transform: scale(1.1); box-shadow: 0 0 20px #fbbf24; }
+            100% { transform: scale(1.25); box-shadow: 0 0 50px #f59e0b; }
+        }
+
+        .seat.roulette-target .seat-inner {
+            box-shadow: 0 0 35px #ef4444;
+            animation: pulse-red-border 0.5s infinite alternate;
+            border-radius: 12px;
+        }
+
+        @keyframes pulse-red-border {
+            from { box-shadow: 0 0 15px #ef4444; transform: scale(1); }
+            to { box-shadow: 0 0 40px #ef4444, 0 0 60px #ef4444; transform: scale(1.05); }
+        }
+
+        /* カウントダウンアニメーション */
+        .countdown-text {
+            font-size: 25vw;
+            color: white;
+            text-shadow: 0 0 40px rgba(255,255,255,1), 0 0 80px rgba(59, 130, 246, 0.8);
+            animation: popIn 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            40% { transform: scale(1.1); opacity: 1; }
+            60% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        /* パーティクルエフェクト用キャンバス */
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* ボタンのスタイル */
+        .btn-gorgeous {
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6, #ec4899);
+            background-size: 200% 200%;
+            animation: gradientBtn 3s ease infinite;
+            color: white;
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .btn-gorgeous:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 10px rgba(139, 92, 246, 0.4);
+        }
+        @keyframes gradientBtn {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 派手になったルーレットコンテナ */
+        #roulette-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85); /* 画面全体を暗くする */
+            z-index: 80;
+            backdrop-filter: blur(5px);
+        }
+        
+        .roulette-content {
+            background: radial-gradient(circle, #1f2937 0%, #000000 100%);
+            border: 2px solid #3b82f6;
+            box-shadow: 0 0 50px rgba(59, 130, 246, 0.5);
+        }
+
+        /* 勝者決定時の爆発的拡大 */
+        @keyframes explode-text {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.5); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .winner-anim {
+            animation: explode-text 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            text-shadow: 0 0 20px #f59e0b, 0 0 40px #ef4444;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center relative p-2 md:p-4">
+
+    <!-- エラーメッセージ用モーダル（白基調に合わせて調整） -->
+    <div id="message-modal" class="hidden fixed top-0 left-0 w-full h-full z-[999] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm">
+        <div class="bg-white border-2 border-red-400 rounded-xl p-8 max-w-sm w-11/12 text-center shadow-2xl transform transition-transform scale-95 duration-200">
+            <p id="message-text" class="text-gray-800 text-lg mb-6 font-bold"></p>
+            <button onclick="closeMessage()" class="bg-red-500 hover:bg-red-600 text-white px-8 py-3 rounded-lg font-bold transition-colors shadow-lg">閉じる</button>
+        </div>
+    </div>
+
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- セットアップ画面 -->
+    <div id="setup-screen" class="glass-panel p-6 md:p-8 rounded-3xl w-11/12 max-w-4xl flex flex-col gap-6 z-10 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto">
+        <h1 class="text-3xl md:text-4xl text-center font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">席替えセッティング</h1>
+        
+        <div class="flex flex-col md:flex-row gap-6 md:gap-8">
+            <!-- 名簿入力 -->
+            <div class="flex-1 flex flex-col gap-2">
+                <label class="text-lg font-bold text-gray-700">1. 参加者リスト (改行区切り)</label>
+                <textarea id="name-list" class="w-full h-40 md:h-48 bg-white text-gray-800 p-3 rounded-xl border-2 border-gray-300 focus:outline-none focus:border-blue-500 shadow-inner" placeholder="1, 山田 太郎&#10;2, 鈴木 花子&#10;..."></textarea>
+                <div class="flex justify-between items-center mt-1">
+                    <p class="text-xs text-gray-500">※「出席番号, 名前」または「名前のみ」</p>
+                    <button onclick="loadSampleData()" class="text-sm text-blue-600 font-bold hover:text-blue-800">サンプル入力</button>
+                </div>
+            </div>
+
+            <!-- 座席設定 -->
+            <div class="flex-1 flex flex-col gap-4">
+                <label class="text-lg font-bold text-gray-700">2. 座席配置の設定</label>
+                
+                <div class="flex items-center justify-center gap-6 bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm">
+                    <div class="text-center">
+                        <label class="text-sm text-gray-500 block mb-1">列数 (縦)</label>
+                        <input type="number" id="rows" class="w-24 bg-gray-100 text-gray-800 p-2 rounded-lg text-center font-bold text-xl focus:outline-none focus:ring-2 focus:ring-blue-400" value="6" min="1" max="10">
+                    </div>
+                    <span class="text-3xl font-light text-gray-400">×</span>
+                    <div class="text-center">
+                        <label class="text-sm text-gray-500 block mb-1">行数 (横)</label>
+                        <input type="number" id="cols" class="w-24 bg-gray-100 text-gray-800 p-2 rounded-lg text-center font-bold text-xl focus:outline-none focus:ring-2 focus:ring-blue-400" value="6" min="1" max="10">
+                    </div>
+                </div>
+
+                <div class="mt-2">
+                    <label class="text-sm font-bold text-gray-600 block mb-1">配置プリセット</label>
+                    <select id="layout-preset" class="w-full bg-white text-gray-800 p-3 rounded-xl border-2 border-gray-300 focus:outline-none focus:border-blue-500 font-bold" onchange="applyPreset()">
+                        <option value="standard">標準 (6x6 など)</option>
+                        <option value="island">島型 (4人x6グループ等)</option>
+                        <option value="custom">カスタム（画面上で不要な席を除外）</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="startCustomization()" class="btn-gorgeous text-xl md:text-2xl font-bold py-4 rounded-2xl mt-2">
+            座席を確定して次へ
+        </button>
+    </div>
+
+    <!-- 座席カスタム画面 (空席設定) -->
+    <div id="custom-screen" class="hidden absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center z-20 bg-white bg-opacity-95 backdrop-blur-md p-4">
+        <h2 class="text-2xl md:text-3xl font-bold mb-2 text-gray-800">使用しない席をタップしてください</h2>
+        <p class="text-gray-500 mb-6">黒板（前）は画面上部です</p>
+        
+        <div id="custom-seat-grid" class="grid gap-2 mb-8 w-full max-w-4xl max-h-[60vh] overflow-auto p-4 bg-gray-100 rounded-2xl shadow-inner border-2 border-gray-200">
+            <!-- JSで生成 -->
+        </div>
+        
+        <div class="flex gap-6 w-full max-w-md">
+            <button onclick="backToSetup()" class="flex-1 bg-gray-400 hover:bg-gray-500 text-white py-4 rounded-xl font-bold text-lg shadow">戻る</button>
+            <button onclick="readyToStart()" class="flex-1 bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg">これで決定</button>
+        </div>
+    </div>
+
+    <!-- カウントダウン画面 -->
+    <div id="countdown-screen" class="hidden absolute top-0 left-0 w-full h-full z-50 flex items-center justify-center bg-gray-900 bg-opacity-95 backdrop-blur-md">
+        <div id="countdown-number" class="countdown-text font-bold">3</div>
+    </div>
+
+    <!-- メイン画面 (席替え実行) -->
+    <div id="main-screen" class="hidden absolute top-0 left-0 w-full h-full flex flex-col items-center p-2 md:p-4 z-10 bg-transparent">
+        <!-- ポップな黒板風ヘッダー -->
+        <div class="w-full max-w-3xl h-12 md:h-16 bg-emerald-600 border-b-8 border-emerald-800 rounded-t-2xl shadow-md flex items-center justify-center mb-2 md:mb-4 shrink-0">
+            <h2 class="text-xl md:text-2xl font-bold tracking-widest text-white drop-shadow">黒板 (前)</h2>
+        </div>
+
+        <!-- 画面いっぱいに広がる座席エリア -->
+        <div class="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0">
+            <div id="seat-grid" class="grid gap-2 md:gap-3 p-3 md:p-5 glass-panel rounded-2xl w-full h-full max-w-7xl max-h-full">
+                <!-- JSで生成 -->
+            </div>
+        </div>
+
+        <!-- コントロールパネル -->
+        <div class="h-20 md:h-24 w-full flex items-center justify-center gap-6 mt-2 shrink-0">
+             <button id="start-btn" onclick="startCountdown()" class="btn-gorgeous text-2xl md:text-3xl font-bold py-3 md:py-4 px-12 rounded-full w-full max-w-lg shadow-xl">
+                席替えスタート！！
+            </button>
+            <button id="reset-btn" onclick="location.reload()" class="hidden bg-gray-700 hover:bg-gray-600 text-white px-8 py-4 rounded-full font-bold shadow-lg text-lg">
+                もう一度やり直す
+            </button>
+        </div>
+    </div>
+
+    <!-- 派手になった最後のルーレット演出用コンテナ -->
+    <div id="roulette-container" class="flex-col items-center justify-center">
+        <div class="roulette-content p-8 md:p-12 rounded-3xl flex flex-col items-center gap-8 shadow-2xl max-w-4xl w-11/12 transform scale-0 transition-transform duration-500" id="roulette-box">
+            
+            <h2 class="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-red-400 to-pink-500 animate-pulse text-center w-full drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]">
+                💥 最終決戦 💥
+            </h2>
+            <p class="text-2xl text-white font-bold mb-4 bg-black bg-opacity-50 px-6 py-2 rounded-full">最後尾の席（勝者）はどっちだ！？</p>
+            
+            <div class="flex justify-around items-center w-full mt-4">
+                <!-- 候補者1 -->
+                <div id="candidate-1" class="flex flex-col items-center gap-4">
+                    <div class="w-32 h-32 md:w-48 md:h-48 rounded-full bg-blue-900 border-8 border-blue-400 flex items-center justify-center shadow-[0_0_30px_rgba(59,130,246,0.6)] transition-all duration-200">
+                        <span id="name-1" class="text-3xl md:text-5xl font-bold text-white drop-shadow-lg">名前1</span>
+                    </div>
+                </div>
+                
+                <div class="text-6xl md:text-8xl font-black text-red-500 italic px-6 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-bounce">
+                    VS
+                </div>
+
+                <!-- 候補者2 -->
+                <div id="candidate-2" class="flex flex-col items-center gap-4">
+                    <div class="w-32 h-32 md:w-48 md:h-48 rounded-full bg-green-900 border-8 border-green-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.6)] transition-all duration-200">
+                        <span id="name-2" class="text-3xl md:text-5xl font-bold text-white drop-shadow-lg">名前2</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="roulette-result" class="hidden mt-8 text-center w-full flex-col items-center">
+                <p class="text-3xl text-yellow-300 font-bold mb-4">勝者は...</p>
+                <div class="bg-white px-10 py-6 rounded-2xl shadow-[0_0_50px_rgba(255,255,255,0.8)]">
+                    <p id="winner-name" class="text-6xl md:text-8xl font-black text-red-600 winner-anim"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- UIユーティリティ ---
+        function showMessage(msg) {
+            document.getElementById('message-text').innerText = msg;
+            const modal = document.getElementById('message-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.children[0].classList.remove('scale-95');
+                modal.children[0].classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeMessage() {
+            const modal = document.getElementById('message-modal');
+            modal.children[0].classList.remove('scale-100');
+            modal.children[0].classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        // --- 状態変数 ---
+        let students = [];
+        let numRows = 6;
+        let numCols = 6;
+        let activeSeats = [];
+        let shuffledStudents = [];
+        let seatElements = [];
+        
+        let middleSeats = [];
+        let edgeSeats = [];
+        let finalTwoSeats = [];
+
+        // 偏りのない完全なランダムシャッフル (Fisher-Yates)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // --- セットアップ ---
+        function loadSampleData() {
+            let sample = "";
+            for (let i = 1; i <= 36; i++) {
+                sample += `${i}, 生徒${i}郎\n`;
+            }
+            document.getElementById('name-list').value = sample;
+            document.getElementById('rows').value = 6;
+            document.getElementById('cols').value = 6;
+        }
+
+        function applyPreset() {
+            const preset = document.getElementById('layout-preset').value;
+            if(preset === 'standard' || preset === 'island') {
+                document.getElementById('rows').value = 6;
+                document.getElementById('cols').value = 6;
+            }
+        }
+
+        function parseInput() {
+            const text = document.getElementById('name-list').value.trim();
+            if (!text) {
+                showMessage("参加者リストを入力してください。");
+                return false;
+            }
+            
+            const lines = text.split('\n');
+            students = [];
+            lines.forEach((line, index) => {
+                if (line.trim() === '') return;
+                if (line.includes(',')) {
+                    const parts = line.split(',');
+                    students.push({ id: parts[0].trim(), name: parts[1].trim() });
+                } else {
+                    students.push({ id: String(index + 1), name: line.trim() });
+                }
+            });
+
+            if (students.length < 2) {
+                showMessage("ルーレット演出のため、参加者は2名以上入力してください。");
+                return false;
+            }
+            
+            return true;
+        }
+
+        function startCustomization() {
+            if (!parseInput()) return;
+            
+            numRows = parseInt(document.getElementById('rows').value);
+            numCols = parseInt(document.getElementById('cols').value);
+            
+            const totalSeats = numRows * numCols;
+            if (students.length > totalSeats) {
+                showMessage(`生徒数(${students.length}人)が座席数(${totalSeats}席)を上回っています。列/行を増やしてください。`);
+                return;
+            }
+
+            const grid = document.getElementById('custom-seat-grid');
+            grid.style.gridTemplateColumns = `repeat(${numCols}, minmax(0, 1fr))`;
+            grid.innerHTML = '';
+            activeSeats = [];
+
+            const preset = document.getElementById('layout-preset').value;
+
+            for (let r = 0; r < numRows; r++) {
+                for (let c = 0; c < numCols; c++) {
+                    const index = r * numCols + c;
+                    const btn = document.createElement('button');
+                    // 白基調に合わせたカスタム画面のボタン
+                    btn.className = 'w-full aspect-square md:aspect-auto md:h-12 bg-blue-500 rounded-lg text-xs md:text-sm text-white font-bold shadow transition-colors';
+                    btn.innerText = '使用';
+                    btn.dataset.index = index;
+                    btn.dataset.active = 'true';
+
+                    if (preset === 'island' && (c === 2 || c === 3)) {
+                        // 島型簡易シミュレート
+                    }
+
+                    btn.onclick = function() {
+                        if (this.dataset.active === 'true') {
+                            this.dataset.active = 'false';
+                            this.className = 'w-full aspect-square md:aspect-auto md:h-12 bg-gray-300 opacity-50 rounded-lg text-xs md:text-sm text-gray-500 border border-gray-400';
+                            this.innerText = '空席';
+                        } else {
+                            this.dataset.active = 'true';
+                            this.className = 'w-full aspect-square md:aspect-auto md:h-12 bg-blue-500 rounded-lg text-xs md:text-sm text-white font-bold shadow transition-colors';
+                            this.innerText = '使用';
+                        }
+                    };
+                    grid.appendChild(btn);
+                }
+            }
+
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('custom-screen').classList.remove('hidden');
+        }
+
+        function backToSetup() {
+            document.getElementById('custom-screen').classList.add('hidden');
+            document.getElementById('setup-screen').classList.remove('hidden');
+        }
+
+        function readyToStart() {
+            activeSeats = [];
+            const buttons = document.querySelectorAll('#custom-seat-grid button');
+            buttons.forEach(btn => {
+                if (btn.dataset.active === 'true') {
+                    activeSeats.push(parseInt(btn.dataset.index));
+                }
+            });
+
+            if (activeSeats.length < students.length) {
+                showMessage(`使用する座席数(${activeSeats.length})が生徒数(${students.length}人)より少ないです。席を増やしてください。`);
+                return;
+            }
+            if (activeSeats.length < 2) {
+                showMessage("演出の都合上、最低2席必要です。");
+                return;
+            }
+
+            document.getElementById('custom-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+
+            buildMainSeatGrid();
+        }
+
+        function buildMainSeatGrid() {
+            const grid = document.getElementById('seat-grid');
+            // 画面いっぱいに広げるためのGrid設定 (列と行の割合を均等に)
+            grid.style.gridTemplateColumns = `repeat(${numCols}, minmax(0, 1fr))`;
+            grid.style.gridTemplateRows = `repeat(${numRows}, minmax(0, 1fr))`;
+            grid.innerHTML = '';
+            seatElements = new Array(numRows * numCols).fill(null);
+
+            shuffledStudents = shuffleArray([...students]);
+            
+            let assignmentPool = [...shuffledStudents];
+            while (assignmentPool.length < activeSeats.length) {
+                assignmentPool.push(null); // 空席
+            }
+            assignmentPool = shuffleArray(assignmentPool);
+
+            let poolIndex = 0;
+            for (let r = 0; r < numRows; r++) {
+                for (let c = 0; c < numCols; c++) {
+                    const index = r * numCols + c;
+                    const seatDiv = document.createElement('div');
+                    
+                    if (activeSeats.includes(index)) {
+                        seatDiv.className = 'seat';
+                        seatDiv.dataset.index = index;
+                        seatDiv.dataset.row = r;
+                        seatDiv.dataset.col = c;
+                        
+                        const student = assignmentPool[poolIndex++];
+                        
+                        seatDiv.innerHTML = `
+                            <div class="seat-inner">
+                                <div class="seat-front">
+                                    <span class="text-gray-400 text-3xl opacity-50">?</span>
+                                </div>
+                                <div class="seat-back">
+                                    ${student ? `<span class="text-xs md:text-sm text-gray-500 font-bold mb-1">${student.id}</span>
+                                                 <span class="text-base md:text-2xl lg:text-3xl font-black truncate w-full px-1">${student.name}</span>` 
+                                              : `<span class="text-gray-400 font-bold text-lg">空席</span>`}
+                                </div>
+                            </div>
+                        `;
+                        if(student) {
+                            seatDiv.dataset.studentName = student.name;
+                            seatDiv.dataset.studentId = student.id;
+                        } else {
+                            seatDiv.dataset.isEmpty = "true";
+                        }
+                    } else {
+                        // 使用しない場所も構造維持のため透明で配置
+                        seatDiv.className = 'w-full h-full opacity-0 pointer-events-none';
+                    }
+                    
+                    grid.appendChild(seatDiv);
+                    seatElements[index] = seatDiv;
+                }
+            }
+            prepareAnimationGroups();
+        }
+
+        function prepareAnimationGroups() {
+            middleSeats = [];
+            edgeSeats = [];
+            finalTwoSeats = [];
+
+            const activeElements = activeSeats.map(idx => seatElements[idx]).filter(el => el);
+
+            if (activeElements.length <= 2) {
+                finalTwoSeats = activeElements;
+                return;
+            }
+
+            let byRow = {};
+            activeElements.forEach(el => {
+                const r = parseInt(el.dataset.row);
+                if (!byRow[r]) byRow[r] = [];
+                byRow[r].push(el);
+            });
+
+            const rows = Object.keys(byRow).map(Number).sort((a, b) => a - b);
+            const firstRowIdx = rows[0];
+            const lastRowIdx = rows[rows.length - 1];
+
+            const firstRowSeats = byRow[firstRowIdx].sort((a,b) => parseInt(a.dataset.col) - parseInt(b.dataset.col));
+            const lastRowSeats = byRow[lastRowIdx].sort((a,b) => parseInt(a.dataset.col) - parseInt(b.dataset.col));
+
+            const frontCenter = firstRowSeats[Math.floor(firstRowSeats.length / 2)];
+            const backCenter = lastRowSeats[Math.floor(lastRowSeats.length / 2)];
+
+            if (frontCenter && backCenter && frontCenter !== backCenter) {
+                finalTwoSeats = [frontCenter, backCenter];
+            } else {
+                 finalTwoSeats = activeElements.slice(0, 2);
+            }
+
+            finalTwoSeats.forEach(seat => {
+                if(seat.dataset.isEmpty === "true") {
+                    const studentSeat = activeElements.find(el => !finalTwoSeats.includes(el) && el.dataset.isEmpty !== "true");
+                    if(studentSeat) {
+                        const tempHTML = seat.querySelector('.seat-back').innerHTML;
+                        const tempName = seat.dataset.studentName;
+                        const tempId = seat.dataset.studentId;
+                        const tempEmpty = seat.dataset.isEmpty;
+
+                        seat.querySelector('.seat-back').innerHTML = studentSeat.querySelector('.seat-back').innerHTML;
+                        seat.dataset.studentName = studentSeat.dataset.studentName;
+                        seat.dataset.studentId = studentSeat.dataset.studentId;
+                        seat.dataset.isEmpty = studentSeat.dataset.isEmpty;
+
+                        studentSeat.querySelector('.seat-back').innerHTML = tempHTML;
+                        studentSeat.dataset.studentName = tempName;
+                        studentSeat.dataset.studentId = tempId;
+                        studentSeat.dataset.isEmpty = tempEmpty;
+                    }
+                }
+            });
+
+            const remaining = activeElements.filter(el => !finalTwoSeats.includes(el));
+
+            remaining.forEach(el => {
+                const r = parseInt(el.dataset.row);
+                if (r === firstRowIdx || r === lastRowIdx) {
+                    edgeSeats.push(el);
+                } else {
+                    middleSeats.push(el);
+                }
+            });
+
+            middleSeats = shuffleArray(middleSeats);
+            
+            let frontEdge = edgeSeats.filter(el => parseInt(el.dataset.row) === firstRowIdx)
+                                     .sort((a,b) => parseInt(a.dataset.col) - parseInt(b.dataset.col));
+            let backEdge = edgeSeats.filter(el => parseInt(el.dataset.row) === lastRowIdx)
+                                    .sort((a,b) => parseInt(b.dataset.col) - parseInt(a.dataset.col));
+
+            edgeSeats = [];
+            while(frontEdge.length > 0 || backEdge.length > 0) {
+                if(backEdge.length > 0) edgeSeats.push(backEdge.shift());
+                if(frontEdge.length > 0) edgeSeats.push(frontEdge.shift());
+            }
+        }
+
+        function startCountdown() {
+            document.getElementById('start-btn').classList.add('hidden');
+            document.getElementById('countdown-screen').classList.remove('hidden');
+            
+            let count = 3;
+            const countEl = document.getElementById('countdown-number');
+            countEl.innerText = count;
+            countEl.style.color = "white";
+
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countEl.innerText = count;
+                    countEl.style.animation = 'none';
+                    countEl.offsetHeight; 
+                    countEl.style.animation = null;
+                } else if (count === 0) {
+                    countEl.innerText = "START!!";
+                    countEl.style.color = "#3b82f6";
+                    countEl.style.textShadow = "0 0 50px white";
+                } else {
+                    clearInterval(timer);
+                    document.getElementById('countdown-screen').classList.add('hidden');
+                    runRevealSequence();
+                }
+            }, 1000);
+        }
+
+        async function runRevealSequence() {
+            const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+            // 1. 真ん中あたりからランダムに捲る
+            for (let i = 0; i < middleSeats.length; i++) {
+                middleSeats[i].classList.add('revealed');
+                middleSeats[i].querySelector('.seat-inner').style.transform = 'rotateY(180deg) scale(1.05)';
+                setTimeout(() => {
+                    if(middleSeats[i]) middleSeats[i].querySelector('.seat-inner').style.transform = 'rotateY(180deg) scale(1)';
+                }, 300);
+                await sleep(150); 
+            }
+
+            await sleep(600); 
+
+            // 2. 前後交互にゆっくり捲る（ドキドキ感をアップ）
+            for (let i = 0; i < edgeSeats.length; i++) {
+                // 席が鼓動して光る演出
+                edgeSeats[i].classList.add('highlight-pulse');
+                
+                // たっぷり溜める（1.2秒）
+                await sleep(1200); 
+                
+                edgeSeats[i].classList.remove('highlight-pulse');
+                edgeSeats[i].classList.add('revealed');
+                
+                // 捲ったあとの余韻
+                await sleep(600); 
+            }
+
+            await sleep(1000);
+
+            // 3. 最後の2席
+            if(finalTwoSeats.length === 2) {
+                finalTwoSeats[0].classList.add('roulette-target');
+                finalTwoSeats[1].classList.add('roulette-target');
+                await sleep(1500);
+                startRoulette(finalTwoSeats[0], finalTwoSeats[1]);
+            } else {
+                document.getElementById('reset-btn').classList.remove('hidden');
+                shootConfetti(200);
+            }
+        }
+
+        function startRoulette(seat1, seat2) {
+            const container = document.getElementById('roulette-container');
+            const box = document.getElementById('roulette-box');
+            container.style.display = 'flex'; 
+            
+            // モーダルをポンっと出すアニメーション
+            setTimeout(() => {
+                box.classList.remove('scale-0');
+                box.classList.add('scale-100');
+            }, 50);
+            
+            const name1El = document.getElementById('name-1');
+            const name2El = document.getElementById('name-2');
+            const cand1 = document.getElementById('candidate-1');
+            const cand2 = document.getElementById('candidate-2');
+            
+            const n1 = seat1.dataset.studentName || "???";
+            const n2 = seat2.dataset.studentName || "???";
+            
+            name1El.innerText = n1;
+            name2El.innerText = n2;
+
+            let isCand1 = true;
+            let speed = 40;
+            let duration = 0;
+            const maxDuration = 4500; // 長めにして盛り上げる
+
+            function tick() {
+                if (isCand1) {
+                    cand1.children[0].style.transform = 'scale(1.25)';
+                    cand1.children[0].style.boxShadow = '0 0 50px #fbbf24, 0 0 100px #fbbf24';
+                    cand1.children[0].style.borderColor = '#fbbf24';
+                    cand2.children[0].style.transform = 'scale(1)';
+                    cand2.children[0].style.boxShadow = '0 0 20px rgba(16,185,129,0.4)';
+                    cand2.children[0].style.borderColor = '#4ade80';
+                } else {
+                    cand2.children[0].style.transform = 'scale(1.25)';
+                    cand2.children[0].style.boxShadow = '0 0 50px #fbbf24, 0 0 100px #fbbf24';
+                    cand2.children[0].style.borderColor = '#fbbf24';
+                    cand1.children[0].style.transform = 'scale(1)';
+                    cand1.children[0].style.boxShadow = '0 0 20px rgba(59,130,246,0.4)';
+                    cand1.children[0].style.borderColor = '#60a5fa';
+                }
+                
+                // 演出として時々パーティクルを出す
+                if(Math.random() > 0.8) shootConfetti(10, true);
+
+                isCand1 = !isCand1;
+                duration += speed;
+
+                if (duration < maxDuration) {
+                    if (duration > maxDuration * 0.5) speed += 15;
+                    if (duration > maxDuration * 0.8) speed += 30;
+                    setTimeout(tick, speed);
+                } else {
+                    // 完全ランダムで決着
+                    const winnerIndex = Math.random() < 0.5 ? 0 : 1;
+                    const winnerSeat = winnerIndex === 0 ? seat1 : seat2;
+                    const loserSeat = winnerIndex === 0 ? seat2 : seat1;
+                    const winnerName = winnerIndex === 0 ? n1 : n2;
+
+                    cand1.children[0].style.transform = 'scale(1)';
+                    cand2.children[0].style.transform = 'scale(1)';
+                    cand1.children[0].style.borderColor = '#60a5fa';
+                    cand2.children[0].style.borderColor = '#4ade80';
+                    cand1.children[0].style.boxShadow = 'none';
+                    cand2.children[0].style.boxShadow = 'none';
+                    
+                    setTimeout(() => {
+                        document.getElementById('roulette-result').classList.remove('hidden');
+                        document.getElementById('roulette-result').classList.add('flex');
+                        document.getElementById('winner-name').innerText = winnerName;
+                        
+                        // 爆発的パーティクル
+                        shootConfetti(300);
+
+                        const r1 = parseInt(seat1.dataset.row);
+                        const r2 = parseInt(seat2.dataset.row);
+                        
+                        let actualBackSeat, actualFrontSeat;
+                        if(r1 > r2) { actualBackSeat = seat1; actualFrontSeat = seat2; }
+                        else { actualBackSeat = seat2; actualFrontSeat = seat1; }
+
+                        actualBackSeat.querySelector('.seat-back').innerHTML = `
+                            <span class="text-xs md:text-sm text-gray-500 font-bold mb-1">${winnerSeat.dataset.studentId}</span>
+                            <span class="text-base md:text-2xl lg:text-3xl font-black truncate w-full px-1 text-red-600">${winnerName}</span>
+                        `;
+                        actualFrontSeat.querySelector('.seat-back').innerHTML = `
+                            <span class="text-xs md:text-sm text-gray-500 font-bold mb-1">${loserSeat.dataset.studentId}</span>
+                            <span class="text-base md:text-2xl lg:text-3xl font-black truncate w-full px-1">${winnerIndex === 0 ? n2 : n1}</span>
+                        `;
+                        // 勝者の席を目立たせる
+                        actualBackSeat.querySelector('.seat-back').style.border = "4px solid #ef4444";
+                        actualBackSeat.querySelector('.seat-back').style.boxShadow = "0 0 30px rgba(239, 68, 68, 0.6)";
+
+                        actualBackSeat.classList.remove('roulette-target');
+                        actualFrontSeat.classList.remove('roulette-target');
+                        actualBackSeat.classList.add('revealed');
+                        actualFrontSeat.classList.add('revealed');
+                        
+                        setTimeout(() => {
+                            box.classList.remove('scale-100');
+                            box.classList.add('scale-0');
+                            setTimeout(() => {
+                                container.style.display = 'none';
+                                document.getElementById('reset-btn').classList.remove('hidden');
+                            }, 500);
+                        }, 5000); // 結果を5秒見せる
+
+                    }, 800);
+                }
+            }
+            tick();
+        }
+
+        // パーティクル（紙吹雪）システム
+        const canvas = document.getElementById('confetti-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function shootConfetti(amount = 150, isSpark = false) {
+            const colors = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#ec4899', '#ffffff'];
+            const sparkColors = ['#fbbf24', '#fef08a', '#ffffff'];
+
+            for (let i = 0; i < amount; i++) {
+                particles.push({
+                    x: canvas.width / 2,
+                    y: isSpark ? canvas.height / 2 : canvas.height / 2 + 100,
+                    vx: (Math.random() - 0.5) * (isSpark ? 30 : 25),
+                    vy: (Math.random() - 1) * (isSpark ? 30 : 25) - 5,
+                    size: Math.random() * (isSpark ? 5 : 12) + 4,
+                    color: isSpark ? sparkColors[Math.floor(Math.random() * sparkColors.length)] : colors[Math.floor(Math.random() * colors.length)],
+                    rot: Math.random() * 360,
+                    rotSpeed: (Math.random() - 0.5) * 15,
+                    life: isSpark ? Math.random() * 30 + 20 : 200 // 火花は寿命が短い
+                });
+            }
+            if(particles.length === amount) {
+                requestAnimationFrame(updateConfetti);
+            }
+        }
+
+        function updateConfetti() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let active = false;
+
+            for (let i = 0; i < particles.length; i++) {
+                let p = particles[i];
+                if (p.life <= 0) continue;
+                
+                p.vy += 0.6; // 重力
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rot += p.rotSpeed;
+                p.life--;
+
+                if (p.y < canvas.height && p.life > 0) active = true;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot * Math.PI / 180);
+                // 寿命に応じて透明に
+                ctx.globalAlpha = Math.min(1, p.life / 20);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                ctx.restore();
+            }
+
+            if (active) {
+                requestAnimationFrame(updateConfetti);
+            } else {
+                particles = [];
+            }
+        }
+    </script>
+</body>
+</html>
